@@ -1,0 +1,45 @@
+
+version: '3.8'
+
+services:
+  # Backend API Microservice
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - ENV=development
+      - PORT=8000
+    restart: always
+
+  # Next.js Frontend Web Interface
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: always
+
+  # Optional: Local Database for User Persistent Data
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: careerpath_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
