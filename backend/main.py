@@ -1,11 +1,12 @@
-
 import os
 import shutil
 import uuid
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from .rag_service import process_resume
+
+# Fix: Absolute import for direct service execution
+from rag_service import process_resume
 
 app = FastAPI(
     title="CareerPath AI - Backend",
@@ -13,9 +14,10 @@ app = FastAPI(
     version="3.0.0"
 )
 
+# Fix: Strict CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,19 +32,22 @@ async def upload_resume(file: UploadFile = File(...)):
     """
     Endpoint to receive resume PDF and trigger the RAG ingestion pipeline.
     """
-    # 1. Validation: Only allow PDF
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a PDF.")
 
-    # 2. File Lifecycle Management: Secure temporary storage
     temp_filename = f"temp_{uuid.uuid4()}_{file.filename}"
-    temp_path = os.path.join("/tmp" if os.name != 'nt' else ".", temp_filename)
+    temp_dir = "/tmp" if os.name != 'nt' else "."
+    
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+        
+    temp_path = os.path.join(temp_dir, temp_filename)
     
     try:
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # 3. Trigger RAG Pipeline
+        # Trigger RAG Pipeline
         chunk_count = process_resume(temp_path)
         
         return {
@@ -53,10 +58,10 @@ async def upload_resume(file: UploadFile = File(...)):
         }
     
     except Exception as e:
+        print(f"CRITICAL: {str(e)}")
         raise HTTPException(status_code=500, detail=f"AI Ingestion Error: {str(e)}")
     
     finally:
-        # 4. Cleanup: Ensure temp files are deleted regardless of success/fail
         if os.path.exists(temp_path):
             os.remove(temp_path)
 

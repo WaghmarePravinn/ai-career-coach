@@ -1,7 +1,11 @@
-
 import os
 import logging
-from typing import Int
+from typing import List, Any
+from dotenv import load_dotenv
+
+# Fix: Initialize environment variables from .env immediately
+load_dotenv()
+
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain_community.document_loaders import PyPDFLoader
@@ -21,35 +25,29 @@ def process_resume(file_path: str) -> int:
     4. Upserts to Pinecone Vector DB.
     """
     try:
-        # 1. DOCUMENT LOADING: Parse the physical file
         logger.info(f"Processing PDF: {file_path}")
         loader = PyPDFLoader(file_path)
         documents = loader.load()
 
-        # 2. SEMANTIC SPLITTING: Break text into manageable pieces for LLM context windows
-        # chunk_overlap ensures we don't lose context between slices
+        # Semantic Splitting
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, 
             chunk_overlap=200,
             separators=["\n\n", "\n", " ", ""]
         )
         chunks = text_splitter.split_documents(documents)
-        logger.info(f"Generated {len(chunks)} chunks from resume.")
+        logger.info(f"Generated {len(chunks)} chunks.")
 
-        # 3. EMBEDDING GENERATION: Convert text to high-dimensional vectors
-        # Using Google's embedding-001 model for cost-efficient, high-performance RAG
+        # Fix: Using models/text-embedding-004 for 768-dimension index compatibility
         embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
+            model="models/text-embedding-004",
             google_api_key=os.getenv("GOOGLE_API_KEY")
         )
 
-        # 4. VECTOR STORAGE: Store chunks in Pinecone for retrieval
         index_name = os.getenv("PINECONE_INDEX_NAME", "careerpath-ai")
-        
-        # Initialize Pinecone Client
         pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
         
-        # Ingest to Pinecone using LangChain wrapper
+        # Ingest to Pinecone
         PineconeVectorStore.from_documents(
             chunks, 
             embeddings, 

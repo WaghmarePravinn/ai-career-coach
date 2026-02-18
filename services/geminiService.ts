@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { RoadmapData, AgentResponse } from "../types";
 
@@ -7,18 +6,21 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 export const geminiService = {
   // 1. Personalized Career GPT (RAG-like simulation)
   async chatWithContext(message: string, resumeText: string, history: {role: 'user' | 'model', text: string}[]) {
-    const systemInstruction = `You are "CareerPath GPT", a world-class career coach. 
-    Context from User's Resume:
+    const systemInstruction = `You are "CareerPath GPT", a world-class executive career coach and technical architect.
+    CONTEXT FROM USER'S RESUME:
     """
     ${resumeText}
     """
-    Use this context to answer queries. If information isn't in the resume, use your general knowledge but emphasize the gap.
-    Keep answers concise, professional, and actionable.`;
+    INSTRUCTIONS:
+    1. Use the provided resume context to ground your advice.
+    2. Be direct, authoritative, yet encouraging.
+    3. If asked about technical skills, provide architectural context (e.g., if they know Python, suggest FastAPI or high-scale system design).
+    4. Keep responses structured and professional.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: [
-        { role: 'user', parts: [{ text: `System context: ${systemInstruction}` }] },
+        { role: 'user', parts: [{ text: `System instruction: ${systemInstruction}` }] },
         ...history.map(h => ({ role: h.role, parts: [{ text: h.text }] })),
         { role: 'user', parts: [{ text: message }] }
       ],
@@ -32,17 +34,20 @@ export const geminiService = {
 
   // 2. Multi-Agent Resume Analysis
   async analyzeResume(resumeText: string): Promise<AgentResponse[]> {
-    const prompt = `Analyze this resume from two perspectives:
-    1. Recruiter: Focus on keywords, formatting, ATS optimization, and general impact.
-    2. Tech Lead: Focus on project depth, tech stack relevance, coding best practices, and architectural thinking.
+    const prompt = `Act as two distinct personas evaluating this resume:
+    1. RECRUITER: Focus on ATS compatibility, keyword density, clarity of impact, and general narrative flow.
+    2. TECH LEAD: Focus on technical depth, tooling proficiency, evidence of problem-solving, and architectural thinking.
 
-    Resume Text:
+    RESUME CONTENT:
     """
     ${resumeText}
     """
 
-    Return the analysis as a JSON array with exactly two objects. 
-    Each object must have: persona, feedback (markdown), score (0-100), keyPoints (string array).`;
+    OUTPUT REQUIREMENTS:
+    - Provide deep, constructive criticism.
+    - Rate out of 100.
+    - List actionable key points.
+    - Return as JSON.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
@@ -78,11 +83,14 @@ export const geminiService = {
 
   // 3. Roadmap Generation
   async generateRoadmap(targetRole: string, currentSkills: string): Promise<RoadmapData> {
-    const prompt = `Generate a career roadmap to go from my current skills: [${currentSkills}] to my target role: [${targetRole}].
-    Return a visualizable graph in JSON format.
-    Nodes must have: id, label, status (completed, current, next, locked), description.
-    Edges must connect them (id, source, target).
-    Create 5-8 logical steps.`;
+    const prompt = `Create a high-fidelity learning roadmap for a professional transitioning from [${currentSkills}] to [${targetRole}].
+    
+    STRUCTURE:
+    - 5 to 8 sequential steps.
+    - Each step must have a clear label and a brief professional description.
+    - Status should be based on current skills (mark relevant early steps as 'completed' if they match current skills).
+    
+    Return as JSON graph data.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -99,7 +107,7 @@ export const geminiService = {
                 properties: {
                   id: { type: Type.STRING },
                   label: { type: Type.STRING },
-                  status: { type: Type.STRING },
+                  status: { type: Type.STRING, description: "Must be 'completed', 'current', 'next', or 'locked'" },
                   description: { type: Type.STRING }
                 },
                 required: ['id', 'label', 'status', 'description']
@@ -123,6 +131,11 @@ export const geminiService = {
       }
     });
 
-    return JSON.parse(response.text || '{"nodes":[], "edges":[]}');
+    try {
+      return JSON.parse(response.text || '{"nodes":[], "edges":[]}');
+    } catch (e) {
+      console.error("Failed to parse roadmap data", e);
+      return { nodes: [], edges: [] };
+    }
   }
 };
