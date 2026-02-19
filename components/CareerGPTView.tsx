@@ -17,7 +17,6 @@ const CareerGPTView: React.FC<Props> = ({ resumeText, user, conversationId }) =>
   const [activeConvId, setActiveConvId] = useState<string | undefined>(conversationId);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Phase 10: Load historical messages when the conversation ID changes
   useEffect(() => {
     setActiveConvId(conversationId);
     if (conversationId) {
@@ -48,9 +47,14 @@ const CareerGPTView: React.FC<Props> = ({ resumeText, user, conversationId }) =>
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    // Get current user session ID from client for safety
     const session = await supabase.auth.getSession();
     const currentUserId = session.data.session?.user.id || user?.id;
+    const API_URL = 'http://127.0.0.1:8000/api/chat';
+
+    // DEBUG LOGS
+    console.log("DEBUG: Calling API:", API_URL);
+    console.log("DEBUG: User ID:", currentUserId);
+    console.log("DEBUG: Conversation ID:", activeConvId);
 
     const userMsg: ChatMessage = { 
       role: 'user', 
@@ -66,21 +70,25 @@ const CareerGPTView: React.FC<Props> = ({ resumeText, user, conversationId }) =>
     try {
       const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
       
-      // Phase 10: Include user_id and activeConvId for backend persistence
-      const result = await fetch('http://127.0.0.1:8000/api/chat', {
+      const payload = { 
+        message: currentInput, 
+        history, 
+        user_id: currentUserId || null,
+        conversation_id: activeConvId || null 
+      };
+
+      console.log("DEBUG: JSON Request Body:", JSON.stringify(payload));
+
+      const result = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: currentInput, 
-          history, 
-          user_id: currentUserId,
-          conversation_id: activeConvId 
-        })
+        body: JSON.stringify(payload)
       });
 
       if (result.ok) {
         const data = await result.json();
-        // If it was a new conversation, the backend returns a new conversation_id
+        console.log("DEBUG: API Response Received:", data);
+        
         if (!activeConvId && data.conversation_id) {
           setActiveConvId(data.conversation_id);
         }
@@ -92,13 +100,14 @@ const CareerGPTView: React.FC<Props> = ({ resumeText, user, conversationId }) =>
         };
         setMessages(prev => [...prev, aiMsg]);
       } else {
-        throw new Error("Handshake with career engine failed.");
+        const errText = await result.text();
+        throw new Error(`Server Error: ${result.status} - ${errText}`);
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("DEBUG: Chat Failure:", error);
       const errorMsg: ChatMessage = { 
         role: 'model', 
-        content: "Cloud transition error. Persistence might be temporarily unavailable.", 
+        content: `Handshake Error: ${error.message || "The career engine is currently unreachable."}`, 
         timestamp: new Date() 
       };
       setMessages(prev => [...prev, errorMsg]);

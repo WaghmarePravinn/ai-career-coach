@@ -16,9 +16,6 @@ const App: React.FC = () => {
   const [resumeText, setResumeText] = useState<string>('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>();
 
-  // Landing Page is default. If user exists, stay in Landing until they click Start,
-  // but LandingPageView will show "Go to Dashboard".
-  
   const handleLogout = () => {
     setUser(null);
     setActiveSection(AppSection.Landing);
@@ -49,7 +46,14 @@ const App: React.FC = () => {
 
     switch (activeSection) {
       case AppSection.Dashboard:
-        return <DashboardView setActiveSection={setActiveSection} resumeText={resumeText} setResumeText={setResumeText} />;
+        return (
+          <DashboardView 
+            setActiveSection={setActiveSection} 
+            resumeText={resumeText} 
+            setResumeText={setResumeText} 
+            userId={user?.id}
+          />
+        );
       case AppSection.CareerGPT:
         return <CareerGPTView resumeText={resumeText} user={user} conversationId={selectedConversationId} />;
       case AppSection.ResumeAgent:
@@ -59,7 +63,14 @@ const App: React.FC = () => {
       case AppSection.DevOpsDocs:
         return <DevOpsDocsView />;
       default:
-        return <DashboardView setActiveSection={setActiveSection} resumeText={resumeText} setResumeText={setResumeText} />;
+        return (
+          <DashboardView 
+            setActiveSection={setActiveSection} 
+            resumeText={resumeText} 
+            setResumeText={setResumeText} 
+            userId={user?.id}
+          />
+        );
     }
   };
 
@@ -76,19 +87,19 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#020617] selection:bg-blue-500/30 text-slate-200">
+    <div className="flex min-h-screen bg-[#020617] selection:bg-emerald-500/30 text-slate-200">
       {/* Sidebar with History Integration */}
-      <aside className="w-80 bg-slate-900/50 backdrop-blur-xl border-r border-slate-800 hidden md:flex flex-col sticky top-0 h-screen shadow-2xl z-30">
+      <aside className="w-80 bg-slate-950/80 backdrop-blur-2xl border-r border-slate-900 hidden md:flex flex-col sticky top-0 h-screen shadow-2xl z-30">
         <div className="p-8">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 transition-transform hover:scale-105">
               <span className="text-white font-black text-xl">C</span>
             </div>
             <div>
               <h1 className="text-xl font-black text-white tracking-tighter">
-                CareerPath <span className="text-blue-400">AI</span>
+                CareerPath <span className="text-emerald-400">AI</span>
               </h1>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Architect v9.0</p>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Architect v11.0</p>
             </div>
           </div>
         </div>
@@ -100,18 +111,18 @@ const App: React.FC = () => {
               onClick={() => { setActiveSection(item.id); if (item.id !== AppSection.CareerGPT) setSelectedConversationId(undefined); }}
               className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 group ${
                 activeSection === item.id
-                  ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/10'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/10'
+                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
               }`}
             >
-              {item.icon(`w-5 h-5 transition-colors ${activeSection === item.id ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`)}
+              {item.icon(`w-5 h-5 transition-colors ${activeSection === item.id ? 'text-white' : 'text-slate-500 group-hover:text-emerald-400'}`)}
               <span className="font-bold text-sm tracking-tight">{item.label}</span>
             </button>
           ))}
         </nav>
 
         {/* Conversation History Component */}
-        <div className="flex-1 overflow-hidden flex flex-col border-t border-slate-800/50">
+        <div className="flex-1 overflow-hidden flex flex-col border-t border-slate-900/50">
           <HistorySidebar 
             userId={user?.id || ''} 
             onSelect={handleConversationSelect} 
@@ -119,20 +130,20 @@ const App: React.FC = () => {
           />
         </div>
 
-        <div className="p-6 border-t border-slate-800/50">
-          <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/50">
+        <div className="p-6 border-t border-slate-900/50">
+          <div className="bg-slate-900/40 rounded-3xl p-4 border border-slate-800">
              <div className="flex items-center gap-3 mb-4">
-               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center text-xs font-bold border border-slate-600 uppercase">
+               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-800 to-slate-700 flex items-center justify-center text-xs font-bold border border-slate-700 uppercase">
                  {user?.email?.[0]}
                </div>
                <div className="flex-1 overflow-hidden">
                  <p className="text-xs font-black text-white truncate">{user?.email}</p>
-                 <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Architect Profile</p>
+                 <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Architect Profile</p>
                </div>
              </div>
              <button 
                onClick={handleLogout}
-               className="w-full py-2 bg-slate-900 border border-slate-700 hover:border-red-500/50 hover:text-red-400 text-slate-400 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest"
+               className="w-full py-2 bg-slate-950 border border-slate-800 hover:border-red-500/50 hover:text-red-400 text-slate-400 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest"
              >
                Terminate Session
              </button>
@@ -141,11 +152,11 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 bg-slate-950/50 backdrop-blur-xl border-b border-slate-800/50 flex items-center justify-between px-10 z-20">
+        <header className="h-16 bg-slate-950/50 backdrop-blur-xl border-b border-slate-900/50 flex items-center justify-between px-10 z-20">
           <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500 tracking-widest uppercase">
             <span>Root</span>
             <svg className="w-3 h-3 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
-            <span className="text-blue-400">{activeSection.replace('-', ' ')}</span>
+            <span className="text-emerald-400">{activeSection.replace('-', ' ')}</span>
           </div>
           
           <div className="flex items-center gap-6">
@@ -159,9 +170,9 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-slate-950 relative">
+        <div className="flex-1 overflow-y-auto bg-slate-950 relative custom-scrollbar">
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
-          <div className="max-w-6xl mx-auto p-12 relative z-10">
+          <div className="max-w-7xl mx-auto p-12 relative z-10">
             {renderContent()}
           </div>
         </div>
