@@ -1,7 +1,7 @@
 import os
 import logging
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 
 # Vector DB & AI Imports
@@ -27,13 +27,13 @@ def get_vectorstore():
     index_name = os.getenv("PINECONE_INDEX_NAME", "careerpath-ai")
     return PineconeVectorStore(index_name=index_name, embedding=embeddings)
 
-def process_resume(file_path: str) -> int:
-    """Ingest PDF and store chunks in Pinecone."""
+def process_resume(file_path: str, user_id: str) -> int:
+    """Ingest PDF and store chunks in Pinecone with USER_ID metadata for isolation."""
     try:
         loader = PyPDFLoader(file_path)
         documents = loader.load()
         
-        # Optimized chunking for career context retention
+        # Optimized chunking
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=CHUNK_SIZE, 
             chunk_overlap=CHUNK_OVERLAP,
@@ -41,18 +41,23 @@ def process_resume(file_path: str) -> int:
         )
         chunks = text_splitter.split_documents(documents)
         
+        # SECURITY: Inject user_id into every chunk's metadata
+        for chunk in chunks:
+            chunk.metadata["user_id"] = user_id
+        
         embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
         index_name = os.getenv("PINECONE_INDEX_NAME", "careerpath-ai")
         
-        # Upserting chunks
+        # Upserting protected chunks
         PineconeVectorStore.from_documents(chunks, embeddings, index_name=index_name)
+        logger.info(f"RAG: Indexed {len(chunks)} chunks for user {user_id}")
         return len(chunks)
     except Exception as e:
         logger.error(f"RAG Process Fail: {str(e)}")
         raise e
 
-def query_resume(question: str, history: List[Dict] = None) -> str:
-    """Query the vector store with conversation memory."""
+def query_resume(question: str, history: List[Dict] = None, user_id: Optional[str] = None) -> str:
+    """Query vector store with strict USER_ID metadata filtering."""
     try:
         vectorstore = get_vectorstore()
         llm = ChatGoogleGenerativeAI(model=LLM_MODEL, temperature=0.7)
@@ -60,29 +65,29 @@ def query_resume(question: str, history: List[Dict] = None) -> str:
         # Build history context
         hist_str = ""
         if history:
-            hist_str = "\n".join([f"{h['role'].upper()}: {h['content']}" for h in history[-4:]]) # Last 4 turns
+            hist_str = "\n".join([f"{h['role'].upper()}: {h['content']}" for h in history[-4:]])
 
-        template = f"""
+        template = """
         System: You are an elite Career Architect.
         Conversation History:
-        {hist_str}
+        {history}
         
         Context from candidate resume:
-        {{context}}
+        {context}
         
-        Candidate Question: {{question}}
-        
-        Response Guidelines:
-        1. Be specific based on the provided resume context.
-        2. If info is missing, suggest how to obtain it.
-        3. Professional, concise, and architectural tone.
+        Candidate Question: {question}
         
         Architect Response:"""
 
+        # SECURITY: Apply filter so search ONLY looks at this specific user's chunks
+        search_kwargs = {"k": TOP_K}
+        if user_id:
+            search_kwargs["filter"] = {"user_id": user_id}
+
         qa_chain = RetrievalQA.from_chain_type(
             llm,
-            retriever=vectorstore.as_retriever(search_kwargs={"k": TOP_K}),
-            chain_type_kwargs={"prompt": PromptTemplate.from_template(template)}
+            retriever=vectorstore.as_retriever(search_kwargs=search_kwargs),
+            chain_type_kwargs={"prompt": PromptTemplate.from_template(template.format(history=hist_str, context="{context}", question="{question}"))}
         )
         
         result = qa_chain.invoke({"query": question})
@@ -91,39 +96,36 @@ def query_resume(question: str, history: List[Dict] = None) -> str:
         logger.error(f"Query Service Error: {str(e)}")
         raise e
 
-def get_career_roadmap(target_role: str) -> Dict[str, Any]:
-    """Identify skill gaps and generate a transition timeline."""
+def get_career_roadmap(target_role: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    """Generate roadmap with metadata isolation."""
     try:
         vectorstore = get_vectorstore()
         llm = ChatGoogleGenerativeAI(model=LLM_MODEL, temperature=0.2)
         
         prompt_template = """
         Context: {context}
-        Objective: Create a Skill Gap Analysis and 4-Phase Roadmap for a {target_role} position.
+        Objective: Create a 4-Phase Roadmap for a {target_role} position.
         
-        CRITICAL: Return ONLY valid JSON.
-        Format:
+        Return ONLY valid JSON:
         {{
-            "missing_skills": ["List", "of", "skills"],
+            "missing_skills": [],
             "steps": [
-                {{
-                    "title": "Phase Title",
-                    "description": "Specific actions",
-                    "difficulty": "Beginner|Intermediate|Advanced",
-                    "estimated_time": "Time frame"
-                }}
+                {{"title": "", "description": "", "difficulty": "", "estimated_time": ""}}
             ]
         }}
         """
 
+        search_kwargs = {"k": 6}
+        if user_id:
+            search_kwargs["filter"] = {"user_id": user_id}
+
         qa_chain = RetrievalQA.from_chain_type(
             llm,
-            retriever=vectorstore.as_retriever(search_kwargs={"k": 6}),
-            chain_type_kwargs={"prompt": PromptTemplate.from_template(prompt_template)}
+            retriever=vectorstore.as_retriever(search_kwargs=search_kwargs),
+            chain_type_kwargs={"prompt": PromptTemplate.from_template(prompt_template.format(context="{context}", target_role=target_role))}
         )
         
-        raw_result = qa_chain.invoke({"query": f"Map a path to {target_role}"})
-        # Basic cleaning for LLM markdown output
+        raw_result = qa_chain.invoke({"query": f"Map path to {target_role}"})
         clean_json = raw_result["result"].strip().replace("```json", "").replace("```", "")
         return json.loads(clean_json)
     except Exception as e:
