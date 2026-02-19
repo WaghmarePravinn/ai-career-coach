@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Sparkles, Loader2 } from 'lucide-react';
+import { Send, User, Bot, Sparkles, Loader2, RefreshCcw } from 'lucide-react';
 import { ChatMessage } from '../types';
 
 /**
  * CareerChat Component
- * Connects to the FastAPI /api/chat RAG endpoint with full history support.
+ * Handles conversational state and RAG backend integration.
  */
 const CareerChat: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -13,6 +13,7 @@ const CareerChat: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to latest message
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
@@ -31,13 +32,14 @@ const CareerChat: React.FC = () => {
       timestamp: new Date(),
     };
 
-    // Prepare history payload for the backend
-    const historyPayload = messages.map(msg => ({
+    // Maintain turn limit for context efficiency
+    const historyPayload = messages.slice(-6).map(msg => ({
       role: msg.role,
       content: msg.content
     }));
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsTyping(true);
     setError(null);
@@ -47,13 +49,13 @@ const CareerChat: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          message: input,
+          message: currentInput,
           history: historyPayload 
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Consultation service is currently unavailable.');
+        throw new Error('Inference server returned an invalid state.');
       }
 
       const data = await response.json();
@@ -66,43 +68,57 @@ const CareerChat: React.FC = () => {
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: any) {
-      setError(err.message || "Connection failed.");
+      setError(err.message || "Consultation gateway is offline.");
+      // Recovery logic: Put the input back if it failed
+      setInput(currentInput);
     } finally {
       setIsTyping(false);
     }
   };
 
+  const clearChat = () => setMessages([]);
+
   return (
-    <div className="flex flex-col h-[600px] w-full max-w-2xl mx-auto glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-800/50">
-      {/* Header */}
-      <div className="p-6 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400">
-            <Sparkles className="w-5 h-5" />
+    <div className="flex flex-col h-[650px] w-full max-w-2xl mx-auto bg-white rounded-[3rem] overflow-hidden shadow-2xl border border-slate-200">
+      {/* Dynamic Header */}
+      <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/80 backdrop-blur-md flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-blue-400 shadow-lg shadow-slate-200">
+            <Sparkles className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-bold text-white text-sm">CareerPath Coach</h3>
-            <div className="flex items-center gap-1.5">
+            <h3 className="font-black text-slate-900 tracking-tight">CareerPath Coach</h3>
+            <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Conversational RAG Active</span>
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Stateful RAG Active</span>
             </div>
           </div>
         </div>
+        
+        {messages.length > 0 && (
+          <button 
+            onClick={clearChat}
+            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+            title="Reset Conversation"
+          >
+            <RefreshCcw className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {/* Message Area */}
+      {/* Message Feed */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-slate-950/20"
+        className="flex-1 overflow-y-auto p-8 space-y-8 scroll-smooth"
       >
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-            <div className="w-16 h-16 bg-slate-800 rounded-3xl flex items-center justify-center text-slate-600">
-              <Bot className="w-8 h-8" />
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
+            <div className="w-20 h-20 bg-slate-100 rounded-[2.5rem] flex items-center justify-center text-slate-400">
+              <Bot className="w-10 h-10" />
             </div>
-            <div className="space-y-1">
-              <p className="text-white font-bold">Awaiting Career Context</p>
-              <p className="text-xs text-slate-500 max-w-[200px]">Ask about your skills, roadmap, or job market fit.</p>
+            <div className="space-y-2">
+              <p className="text-slate-900 font-black text-lg">Knowledge Session Idle</p>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Upload your resume to begin analysis</p>
             </div>
           </div>
         )}
@@ -110,20 +126,20 @@ const CareerChat: React.FC = () => {
         {messages.map((msg, i) => (
           <div 
             key={i} 
-            className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            className={`flex items-start gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-              msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-blue-400'
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+              msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-blue-50 text-blue-600'
             }`}>
-              {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+              {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
             </div>
-            <div className={`group relative max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+            <div className={`group relative max-w-[80%] px-6 py-4 rounded-[2rem] text-sm leading-loose font-medium ${
               msg.role === 'user' 
-                ? 'bg-indigo-600 text-white rounded-tr-none' 
-                : 'bg-slate-800/80 text-slate-200 border border-slate-700/50 rounded-tl-none'
+                ? 'bg-slate-900 text-white rounded-tr-none' 
+                : 'bg-slate-50 text-slate-700 border border-slate-100 rounded-tl-none'
             }`}>
               {msg.content}
-              <span className="absolute -bottom-5 left-0 text-[9px] font-bold text-slate-600 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="absolute -bottom-6 left-2 text-[9px] font-black text-slate-300 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">
                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
@@ -131,46 +147,46 @@ const CareerChat: React.FC = () => {
         ))}
 
         {isTyping && (
-          <div className="flex items-start gap-3 animate-in fade-in duration-300">
-            <div className="w-8 h-8 rounded-xl bg-slate-800 text-blue-400 flex items-center justify-center">
-              <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex items-start gap-4 animate-in fade-in duration-300">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+              <Loader2 className="w-5 h-5 animate-spin" />
             </div>
-            <div className="bg-slate-800/80 px-4 py-3 rounded-2xl rounded-tl-none flex gap-1.5 items-center">
-              <span className="w-1.5 h-1.5 bg-blue-500/50 rounded-full animate-bounce"></span>
-              <span className="w-1.5 h-1.5 bg-blue-500/50 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-              <span className="w-1.5 h-1.5 bg-blue-500/50 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+            <div className="bg-slate-50 px-6 py-4 rounded-[2rem] rounded-tl-none flex gap-2 items-center">
+              <span className="w-2 h-2 bg-blue-500/40 rounded-full animate-bounce"></span>
+              <span className="w-2 h-2 bg-blue-500/40 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+              <span className="w-2 h-2 bg-blue-500/40 rounded-full animate-bounce [animation-delay:0.4s]"></span>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="flex justify-center">
-            <div className="px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-full text-[10px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+          <div className="flex justify-center pt-4">
+            <div className="px-5 py-2.5 bg-red-50 border border-red-100 rounded-full text-[10px] font-black text-red-600 uppercase tracking-[0.2em] flex items-center gap-2 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
               {error}
             </div>
           </div>
         )}
       </div>
 
-      {/* Input Field */}
-      <div className="p-6 bg-slate-900/40 border-t border-slate-800">
-        <div className="relative flex items-center">
+      {/* Secure Input Controller */}
+      <div className="p-8 bg-slate-50/50 border-t border-slate-100">
+        <div className="relative flex items-center group">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask your Career Coach..."
+            placeholder="Ask your Career Architect..."
             disabled={isTyping}
-            className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-2xl pl-4 pr-14 py-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600 disabled:opacity-50"
+            className="w-full bg-white border border-slate-200 text-slate-900 text-sm font-bold rounded-[1.5rem] pl-6 pr-16 py-5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300 disabled:opacity-50"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
-            className="absolute right-2 p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all active:scale-90 disabled:opacity-50 disabled:bg-slate-800"
+            className="absolute right-3 p-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl transition-all active:scale-90 disabled:opacity-50 disabled:bg-slate-200 shadow-xl shadow-slate-200"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-5 h-5" />
           </button>
         </div>
       </div>
