@@ -16,21 +16,31 @@ const App: React.FC = () => {
   const [resumeText, setResumeText] = useState<string>('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>();
 
-  // Landing Page is default. If user exists, go to Dashboard.
-  useEffect(() => {
-    if (user && activeSection === AppSection.Landing) {
-      setActiveSection(AppSection.Dashboard);
-    }
-  }, [user]);
-
+  // Landing Page is default. If user exists, stay in Landing until they click Start,
+  // but LandingPageView will show "Go to Dashboard".
+  
   const handleLogout = () => {
     setUser(null);
     setActiveSection(AppSection.Landing);
   };
 
+  const handleConversationSelect = (id: string) => {
+    if (id === 'new') {
+      setSelectedConversationId(undefined);
+    } else {
+      setSelectedConversationId(id);
+    }
+    setActiveSection(AppSection.CareerGPT);
+  };
+
   const renderContent = () => {
     if (activeSection === AppSection.Landing) {
-      return <LandingPageView onStart={() => setActiveSection(AppSection.Auth)} />;
+      return (
+        <LandingPageView 
+          isLoggedIn={!!user} 
+          onStart={() => user ? setActiveSection(AppSection.Dashboard) : setActiveSection(AppSection.Auth)} 
+        />
+      );
     }
     
     if (activeSection === AppSection.Auth) {
@@ -78,7 +88,7 @@ const App: React.FC = () => {
               <h1 className="text-xl font-black text-white tracking-tighter">
                 CareerPath <span className="text-blue-400">AI</span>
               </h1>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Architect v7.0</p>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Architect v9.0</p>
             </div>
           </div>
         </div>
@@ -87,7 +97,7 @@ const App: React.FC = () => {
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => { setActiveSection(item.id); setSelectedConversationId(undefined); }}
+              onClick={() => { setActiveSection(item.id); if (item.id !== AppSection.CareerGPT) setSelectedConversationId(undefined); }}
               className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 group ${
                 activeSection === item.id
                   ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/10'
@@ -104,7 +114,7 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-hidden flex flex-col border-t border-slate-800/50">
           <HistorySidebar 
             userId={user?.id || ''} 
-            onSelect={(id) => { setSelectedConversationId(id); setActiveSection(AppSection.CareerGPT); }} 
+            onSelect={handleConversationSelect} 
             activeId={selectedConversationId}
           />
         </div>
@@ -112,12 +122,12 @@ const App: React.FC = () => {
         <div className="p-6 border-t border-slate-800/50">
           <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/50">
              <div className="flex items-center gap-3 mb-4">
-               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center text-xs font-bold border border-slate-600">
-                 {user?.email?.[0].toUpperCase()}
+               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center text-xs font-bold border border-slate-600 uppercase">
+                 {user?.email?.[0]}
                </div>
                <div className="flex-1 overflow-hidden">
                  <p className="text-xs font-black text-white truncate">{user?.email}</p>
-                 <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Active Session</p>
+                 <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Architect Profile</p>
                </div>
              </div>
              <button 
@@ -144,13 +154,12 @@ const App: React.FC = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cloud Sync Active</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Persistence Online</span>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-[#020617] relative">
-          {/* Subtle grid background */}
+        <div className="flex-1 overflow-y-auto bg-slate-950 relative">
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
           <div className="max-w-6xl mx-auto p-12 relative z-10">
             {renderContent()}
